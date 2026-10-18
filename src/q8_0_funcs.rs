@@ -1,7 +1,9 @@
 const WEIGHTS_IN_BLOCK: usize = 32;
 
+use super::f16_funcs;
+
 pub struct Q8_0 {
-    d: half::f16,
+    d: f16_funcs::F16,
     weights: [i8; WEIGHTS_IN_BLOCK],
 }
 
@@ -25,7 +27,7 @@ pub fn f32_to_q8_0(v: &[f32]) -> Vec<Q8_0> {
             weights[j] = (v[i + j] * id).round() as i8;
         }
 
-        let d = half::f16::from_f32(d);
+        let d = f16_funcs::f16_from_f32(d);
         res.push(Q8_0 { d, weights });
         i += WEIGHTS_IN_BLOCK;
     }
@@ -53,7 +55,7 @@ unsafe fn q8_0_dot_avx512f(a: &[Q8_0], b: &[Q8_0]) -> f32 {
 pub fn q8_0_dot_fallback(a: &[Q8_0], b: &[Q8_0]) -> f32 {
     let mut sum = 0.;
     for i in 0..a.len() {
-        let d = b[i].d.to_f32() * a[i].d.to_f32();
+        let d = f16_funcs::f32_from_f16(a[i].d) * f16_funcs::f32_from_f16(b[i].d);
         for j in 0..WEIGHTS_IN_BLOCK {
             sum += (a[i].weights[j] as i16 * b[i].weights[j] as i16) as f32 * d;
         }

@@ -1,5 +1,6 @@
 mod f32_funcs;
 mod q8_0_funcs;
+mod f16_funcs;
 
 fn main() {
     let a = [1.; 2_usize.pow(12)];

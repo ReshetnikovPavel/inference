@@ -8,7 +8,7 @@
 // the one case where the values are chosen to be perfectly representable.
 
 use inference::q8_0_funcs::{f32_to_q8_0, q8_0_dot_fallback};
-use inference::{f32_dot, f32_dot_fallback};
+use inference::f32_funcs::{f32_dot, f32_dot_fallback};
 
 // ---------------------------------------------------------------------------
 // helpers
