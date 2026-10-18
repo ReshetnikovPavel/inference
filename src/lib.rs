@@ -1,3 +1,5 @@
+pub mod q8_0_funcs;
+
 pub fn f32_dot(a: &[f32], b: &[f32]) -> f32 {
     debug_assert_eq!(a.len(), b.len());
 
