@@ -213,8 +213,10 @@ fn rejects_length_not_divisible_by_block() {
 
 #[test]
 fn accepts_length_equal_to_block() {
-    let q = f32_to_q8_0(&[0.5f32; 32]);
-    assert_eq!(q.len(), 1);
+    // Exactly one block: the quantized dot must round-trip the dyadic values
+    // (32 * 0.5 * 0.5 == 8.0) instead of panicking on the length check.
+    let got = quantized_dot(&[0.5f32; 32], &[0.5f32; 32]);
+    assert!((got - 8.0).abs() < 1e-3, "single-block dot = {got}");
 }
 
 // ---------------------------------------------------------------------------
