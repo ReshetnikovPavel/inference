@@ -21,7 +21,7 @@ pub fn f32_dot_fallback(a: &[f32], b: &[f32]) -> f32 {
 }
 
 #[target_feature(enable = "avx512f")]
-unsafe fn f32_dot_avx512f(a: &[f32], b: &[f32]) -> f32 {
+pub unsafe fn f32_dot_avx512f(a: &[f32], b: &[f32]) -> f32 {
     const N: usize = 16;
     let mut acc = std::arch::x86_64::_mm512_setzero_ps();
     let mut i = 0;

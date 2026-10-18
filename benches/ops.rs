@@ -9,7 +9,8 @@
 use std::hint::black_box;
 use std::time::Instant;
 
-use inference::{f32_dot, f32_linear, f32_relu, Mat};
+use inference::f32_funcs::{f32_dot_avx512f, f32_dot_fallback, f32_linear, f32_relu, Mat};
+use inference::q8_0_funcs::{f32_to_q8_0, q8_0_dot_fallback};
 
 /// Number of times each case is repeated to average out noise.
 const ITERS: u32 = 10_000;
@@ -34,16 +35,33 @@ fn bench<T>(name: &str, mut f: impl FnMut() -> T) {
 fn main() {
     println!("{:<28} {:>12}", "benchmark", "time");
 
+    #[cfg(target_arch = "x86_64")]
+    let avx512 = std::arch::is_x86_feature_detected!("avx512f");
+    #[cfg(not(target_arch = "x86_64"))]
+    let avx512 = false;
+
     // `dot` on the same shape `main` uses.
-    let a = [1.; 1000];
-    let b = [1.; 1000];
-    bench("dot (1000)", || f32_dot(&a, &b));
+    let a = vec![1.; 4096];
+    let b = vec![1.; 4096];
+    if avx512 {
+        bench("f32 avx512 dot (4096)", || unsafe { f32_dot_avx512f(&a, &b) });
+    }
+    bench("f32 naive dot (4096)", || f32_dot_fallback(&a, &b));
+    let qa = f32_to_q8_0(&a);
+    let qb = f32_to_q8_0(&b);
+    bench("q8_0 naive dot (4096)", || q8_0_dot_fallback(&qa, &qb));
 
     // `dot` across a few sizes to show how it scales.
-    for n in [100usize, 10_000, 100_000] {
+    for n in [128usize, 1024, 8192, 65536] {
         let a = vec![1.; n];
         let b = vec![1.; n];
-        bench(&format!("dot ({n})"), || f32_dot(&a, &b));
+        if avx512 {
+            bench(&format!("f32 avx512 dot ({n})"), || unsafe { f32_dot_avx512f(&a, &b) });
+        }
+        bench(&format!("f32 naive dot ({n})"), || f32_dot_fallback(&a, &b));
+        let qa = f32_to_q8_0(&a);
+        let qb = f32_to_q8_0(&b);
+        bench(&format!("q8_0 naive dot ({n})"), || q8_0_dot_fallback(&qa, &qb));
     }
 
     // `Mat::new` allocation + construction.

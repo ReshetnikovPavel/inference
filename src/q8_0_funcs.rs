@@ -56,9 +56,11 @@ pub fn q8_0_dot_fallback(a: &[Q8_0], b: &[Q8_0]) -> f32 {
     let mut sum = 0.;
     for i in 0..a.len() {
         let d = f16_funcs::f32_from_f16(a[i].d) * f16_funcs::f32_from_f16(b[i].d);
+        let mut block_sum = 0_i32;
         for j in 0..WEIGHTS_IN_BLOCK {
-            sum += (a[i].weights[j] as i16 * b[i].weights[j] as i16) as f32 * d;
+            block_sum += (a[i].weights[j] as i16 * b[i].weights[j] as i16) as i32;
         }
+        sum += block_sum as f32 * d;
     }
 
     sum
