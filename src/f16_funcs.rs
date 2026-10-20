@@ -1,6 +1,6 @@
 #[repr(transparent)]
 #[derive(Clone, Copy)]
-pub struct F16(i16);
+pub struct F16(pub i16);
 
 pub fn f16_from_f32(x: f32) -> F16 {
     unsafe { f16_from_f32_f16c(x) }
@@ -48,7 +48,7 @@ unsafe fn f32x2_from_f16x2_f16c(a: F16, b: F16) -> (f32, f32) {
 }
 
 #[target_feature(enable = "f16c")]
-unsafe fn f32_from_f16_f16c_mm512(v: &[F16; 16]) -> [f32; 16] {
+pub unsafe fn f32_from_f16_f16c_mm512(v: &[F16; 16]) -> [f32; 16] {
     let v = unsafe { std::arch::x86_64::_mm256_loadu_epi16(v.as_ptr().cast::<i16>()) };
     let v = unsafe { std::arch::x86_64::_mm512_cvtph_ps(v) };
     let mut res = [0f32; 16];
