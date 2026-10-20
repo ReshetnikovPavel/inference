@@ -436,3 +436,108 @@ mod avx512 {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Rust port of llama.cpp's AVX2 q8_0 kernel
+// ---------------------------------------------------------------------------
+
+#[cfg(target_arch = "x86_64")]
+mod llamacpp_avx2 {
+    use super::*;
+    use inference::q8_0_funcs::{
+        q8_0_dot_llamacpp_avx2, q8_0_dot_llamacpp_avx2_batched, q8_0_dot_llamacpp_avx2_unrolled,
+    };
+
+    fn have_avx2() -> bool {
+        std::arch::is_x86_feature_detected!("avx2")
+            && std::arch::is_x86_feature_detected!("fma")
+            && std::arch::is_x86_feature_detected!("f16c")
+    }
+
+    /// All three ports share llama.cpp's arithmetic, and the batched one only
+    /// changes *how the f16 scales are converted* (8 at a time, vectorised), so
+    /// each must agree with the scalar fallback to f32 rounding noise. The tail
+    /// after the 8-block main loop of the batched version is exercised too.
+    #[test]
+    fn all_ports_match_the_fallback() {
+        if !have_avx2() {
+            println!("skipping: no avx2 + fma + f16c");
+            return;
+        }
+        for &blocks in &[1usize, 2, 3, 7, 8, 9, 15, 16, 17, 33, 128] {
+            let n = blocks * 32;
+            for &scale in &[1e-2f32, 1.0, 1e2, 1e5] {
+                let mut rng = Rng::new(0xA5A5_1234 ^ n as u64 ^ scale.to_bits() as u64);
+                let a = rng.vec(n, scale);
+                let b = rng.vec(n, scale);
+                let (qa, qb) = (f32_to_q8_0(&a), f32_to_q8_0(&b));
+                let yardstick = l1_products(&a, &b);
+                let want = q8_0_dot_fallback(&qa, &qb);
+                let ports: [(&str, unsafe fn(&Q8_0, &Q8_0) -> f32); 3] = [
+                    ("avx2", q8_0_dot_llamacpp_avx2),
+                    ("avx2_u4", q8_0_dot_llamacpp_avx2_unrolled),
+                    ("avx2_batched", q8_0_dot_llamacpp_avx2_batched),
+                ];
+                for (name, f) in ports {
+                    let got = unsafe { f(&qa, &qb) };
+                    let err = (got as f64 - want as f64).abs() / yardstick;
+                    assert!(
+                        err < 1e-6,
+                        "{name}: blocks={blocks} scale={scale}: {got} vs fallback {want} (rel err {err})"
+                    );
+                }
+            }
+        }
+    }
+
+    /// On dyadic inputs every intermediate is exact, so the ports must be
+    /// *bit-identical* to the scalar fallback — no rounding excuse. Values are
+    /// integers * 2^-10 with one element at ±127*2^-10 per block, so d = 2^-10
+    /// exactly and every f32 sum is exact (same construction as the AVX512
+    /// bit-exactness test). This pins the integer op mix and the scale handling.
+    #[test]
+    fn batched_port_is_bit_exact_on_dyadic_inputs() {
+        if !have_avx2() {
+            println!("skipping: no avx2 + fma + f16c");
+            return;
+        }
+        for &blocks in &[1usize, 2, 15, 16, 17, 24, 64] {
+            let n = blocks * 32;
+            let mut rng = Rng::new(0x1234_5678 ^ n as u64);
+            let mk = |rng: &mut Rng| {
+                let mut v: Vec<f32> = (0..n)
+                    .map(|_| (rng.next_u64() % 255) as i32 as f32 / 1024. - 127. / 1024.)
+                    .collect();
+                for k in 0..blocks {
+                    v[k * 32 + 31] = 127. / 1024.;
+                }
+                v
+            };
+            let a = mk(&mut rng);
+            let b = mk(&mut rng);
+            let (qa, qb) = (f32_to_q8_0(&a), f32_to_q8_0(&b));
+
+            let want = q8_0_dot_fallback(&qa, &qb);
+            for (name, got) in [
+                ("avx2", unsafe { q8_0_dot_llamacpp_avx2(&qa, &qb) }),
+                ("avx2_u4", unsafe { q8_0_dot_llamacpp_avx2_unrolled(&qa, &qb) }),
+                ("avx2_batched", unsafe { q8_0_dot_llamacpp_avx2_batched(&qa, &qb) }),
+            ] {
+                assert_eq!(got, want, "{name}: blocks={blocks}: {got} vs {want}");
+            }
+        }
+    }
+}
+
+/// The kernels load 32 weight bytes at 32-byte strides, so a cache-line
+/// aligned base keeps every one of those loads inside a single 64-byte line.
+#[test]
+fn weights_are_cache_line_aligned() {
+    for &blocks in &[1usize, 7, 16, 129] {
+        let v: Vec<f32> = (0..blocks * 32).map(|i| (i % 251) as f32 - 125.).collect();
+        let q = f32_to_q8_0(&v);
+        assert_eq!(q.scales().len(), blocks);
+        assert_eq!(q.weights().len(), blocks * 32);
+        assert_eq!(q.weights().as_ptr() as usize % 64, 0, "blocks={blocks}");
+    }
+}

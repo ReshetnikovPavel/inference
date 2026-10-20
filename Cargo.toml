@@ -9,3 +9,15 @@ rustflags = ["-C", "target-cpu=native"]
 [[bench]]
 name = "ops"
 harness = false
+
+[[bench]]
+name = "q8_0_vs_llamacpp"
+harness = false
+
+[[bench]]
+name = "layout_probe"
+harness = false
+
+[[bench]]
+name = "batch_probe"
+harness = false
