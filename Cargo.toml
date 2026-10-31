@@ -3,5 +3,13 @@ name = "inference"
 version = "0.1.0"
 edition = "2024"
 
-[build]
-rustflags = ["-C", "target-cpu=native"]
+[[bench]]
+name = "dot_f32"
+harness = false
+
+[[bench]]
+name = "dot_q8_0"
+harness = false
+
+[profile.bench]
+debug = true

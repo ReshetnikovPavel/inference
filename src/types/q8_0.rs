@@ -1,4 +1,4 @@
-use crate::types::{cache::CacheAlignedVec, f16::F16};
+use crate::types::{avec::CacheAlignedVec, f16::F16};
 
 pub const WEIGHTS_IN_BLOCK: usize = 32;
 
@@ -10,7 +10,7 @@ pub struct VecQ8_0 {
 impl VecQ8_0 {
     #[inline]
     pub fn weights(&self) -> &[i8] {
-        &self.weights.data()
+        &self.weights
     }
 
     #[inline]
@@ -26,7 +26,7 @@ impl VecQ8_0 {
 
     #[inline]
     pub fn d(&self) -> &[F16] {
-        &self.d.data()
+        &self.d
     }
 
     #[inline]
