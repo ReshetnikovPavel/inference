@@ -85,6 +85,12 @@ impl<T> CacheAlignedVec<T> {
     }
 }
 
+impl<T> Default for CacheAlignedVec<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> Drop for CacheAlignedVec<T> {
     fn drop(&mut self) {
         if self.capacity > 0 {

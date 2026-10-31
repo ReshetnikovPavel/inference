@@ -45,16 +45,8 @@ pub fn dot_fallback(a: &VecQ8_0, b: &VecQ8_0) -> f32 {
 
 #[target_feature(enable = "avx2")]
 #[target_feature(enable = "avx512f")]
-#[target_feature(enable = "avx512vnni")]
 #[target_feature(enable = "avx512vl")]
-#[target_feature(enable = "avx2")]
-#[target_feature(enable = "avx512f")]
 #[target_feature(enable = "avx512vnni")]
-#[target_feature(enable = "avx512vl")]
-#[target_feature(enable = "avx2")]
-#[target_feature(enable = "avx512f")]
-#[target_feature(enable = "avx512vnni")]
-#[target_feature(enable = "avx512vl")]
 #[target_feature(enable = "f16c")]
 pub fn dot_simd(a: &VecQ8_0, b: &VecQ8_0) -> f32 {
     let blocks_len = a.blocks_len();
@@ -81,13 +73,15 @@ pub fn dot_simd(a: &VecQ8_0, b: &VecQ8_0) -> f32 {
 
     while i + UNROLL * F32_FIT_IN_MM256 <= blocks_len {
         let mut ds = [x86_64::_mm256_setzero_ps(); UNROLL];
-        for j in 0..UNROLL {
-            ds[j] = unsafe { mm256_mul_d(a.d(), b.d(), i + j * F32_FIT_IN_MM256) };
+
+        for (j, d) in ds.iter_mut().enumerate().take(UNROLL) {
+            *d = unsafe { mm256_mul_d(a.d(), b.d(), i + j * F32_FIT_IN_MM256) };
         }
-        for j in 0..UNROLL {
+
+        for (j, d) in ds.iter().enumerate().take(UNROLL) {
             for k in 0..F32_FIT_IN_MM256 {
                 let d_index = x86_64::_mm256_set1_epi32(k as i32);
-                let d = x86_64::_mm256_permutevar8x32_ps(ds[j], d_index);
+                let d = x86_64::_mm256_permutevar8x32_ps(*d, d_index);
 
                 let dot = unsafe {
                     mm256_mul_weights(a.weights(), b.weights(), i + j * F32_FIT_IN_MM256 + k)
@@ -126,26 +120,18 @@ pub fn dot_simd(a: &VecQ8_0, b: &VecQ8_0) -> f32 {
         i += 1;
     }
 
-    let mut acc = accs[0];
-    for k in 1..INDEPENDENT_ACCUMULATORS {
-        acc = x86_64::_mm256_add_ps(acc, accs[k]);
+    let mut final_acc = accs[0];
+    for acc in accs.iter().take(INDEPENDENT_ACCUMULATORS).skip(1) {
+        final_acc = x86_64::_mm256_add_ps(final_acc, *acc);
     }
-    let sum = mm256_hadd_all(acc);
+    let sum = mm256_hadd_all(final_acc);
     x86_64::_mm_cvtss_f32(sum)
 }
 
 #[target_feature(enable = "avx2")]
 #[target_feature(enable = "avx512f")]
-#[target_feature(enable = "avx512vnni")]
 #[target_feature(enable = "avx512vl")]
-#[target_feature(enable = "avx2")]
-#[target_feature(enable = "avx512f")]
 #[target_feature(enable = "avx512vnni")]
-#[target_feature(enable = "avx512vl")]
-#[target_feature(enable = "avx2")]
-#[target_feature(enable = "avx512f")]
-#[target_feature(enable = "avx512vnni")]
-#[target_feature(enable = "avx512vl")]
 #[target_feature(enable = "f16c")]
 #[inline]
 fn mm256_hadd_all(a: x86_64::__m256) -> x86_64::__m128 {
@@ -164,16 +150,8 @@ fn mm256_hadd_all(a: x86_64::__m256) -> x86_64::__m128 {
 
 #[target_feature(enable = "avx2")]
 #[target_feature(enable = "avx512f")]
-#[target_feature(enable = "avx512vnni")]
 #[target_feature(enable = "avx512vl")]
-#[target_feature(enable = "avx2")]
-#[target_feature(enable = "avx512f")]
 #[target_feature(enable = "avx512vnni")]
-#[target_feature(enable = "avx512vl")]
-#[target_feature(enable = "avx2")]
-#[target_feature(enable = "avx512f")]
-#[target_feature(enable = "avx512vnni")]
-#[target_feature(enable = "avx512vl")]
 #[target_feature(enable = "f16c")]
 #[inline]
 unsafe fn mm256_mul_d(da: &[F16], db: &[F16], i_d_block: usize) -> x86_64::__m256 {
@@ -190,16 +168,8 @@ unsafe fn mm256_mul_d(da: &[F16], db: &[F16], i_d_block: usize) -> x86_64::__m25
 
 #[target_feature(enable = "avx2")]
 #[target_feature(enable = "avx512f")]
-#[target_feature(enable = "avx512vnni")]
 #[target_feature(enable = "avx512vl")]
-#[target_feature(enable = "avx2")]
-#[target_feature(enable = "avx512f")]
 #[target_feature(enable = "avx512vnni")]
-#[target_feature(enable = "avx512vl")]
-#[target_feature(enable = "avx2")]
-#[target_feature(enable = "avx512f")]
-#[target_feature(enable = "avx512vnni")]
-#[target_feature(enable = "avx512vl")]
 #[target_feature(enable = "f16c")]
 #[inline]
 unsafe fn mm256_mul_weights(wa: &[i8], wb: &[i8], q8_0_block_i: usize) -> x86_64::__m256 {
@@ -216,16 +186,8 @@ unsafe fn mm256_mul_weights(wa: &[i8], wb: &[i8], q8_0_block_i: usize) -> x86_64
 
 #[target_feature(enable = "avx2")]
 #[target_feature(enable = "avx512f")]
-#[target_feature(enable = "avx512vnni")]
 #[target_feature(enable = "avx512vl")]
-#[target_feature(enable = "avx2")]
-#[target_feature(enable = "avx512f")]
 #[target_feature(enable = "avx512vnni")]
-#[target_feature(enable = "avx512vl")]
-#[target_feature(enable = "avx2")]
-#[target_feature(enable = "avx512f")]
-#[target_feature(enable = "avx512vnni")]
-#[target_feature(enable = "avx512vl")]
 #[target_feature(enable = "f16c")]
 #[inline]
 unsafe fn mm256_i8_mul_i8(x: x86_64::__m256i, y: x86_64::__m256i) -> x86_64::__m256i {
