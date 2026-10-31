@@ -1,10 +1,10 @@
-use crate::types::{cache::CacheAlignedVecI8, f16::F16};
+use crate::types::{cache::CacheAlignedVec, f16::F16};
 
 pub const WEIGHTS_IN_BLOCK: usize = 32;
 
 pub struct VecQ8_0 {
-    d: Vec<F16>,
-    weights: CacheAlignedVecI8,
+    d: CacheAlignedVec<F16>,
+    weights: CacheAlignedVec<i8>,
 }
 
 impl VecQ8_0 {
@@ -26,7 +26,7 @@ impl VecQ8_0 {
 
     #[inline]
     pub fn d(&self) -> &[F16] {
-        &self.d
+        &self.d.data()
     }
 
     #[inline]
@@ -37,8 +37,8 @@ impl VecQ8_0 {
 
 pub fn quantize(v: &[f32]) -> VecQ8_0 {
     assert_eq!(v.len() % WEIGHTS_IN_BLOCK, 0);
-    let mut q8_0_d = vec![];
-    let mut q8_0_weights = CacheAlignedVecI8::new();
+    let mut q8_0_d = CacheAlignedVec::new();
+    let mut q8_0_weights = CacheAlignedVec::new();
     let mut i = 0;
     while i + WEIGHTS_IN_BLOCK <= v.len() {
         let mut weights = [0; WEIGHTS_IN_BLOCK];
@@ -63,6 +63,6 @@ pub fn quantize(v: &[f32]) -> VecQ8_0 {
 
     VecQ8_0 {
         d: q8_0_d,
-        weights: q8_0_weights.into(),
+        weights: q8_0_weights,
     }
 }

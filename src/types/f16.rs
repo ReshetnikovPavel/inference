@@ -1,7 +1,7 @@
 use std::arch::x86_64;
 
 #[repr(transparent)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Default)]
 pub struct F16(pub i16);
 
 impl From<f32> for F16 {
