@@ -3,6 +3,9 @@ name = "inference"
 version = "0.1.0"
 edition = "2024"
 
+[profile.bench]
+debug = true
+
 [[bench]]
 name = "dot_f32"
 harness = false
@@ -11,5 +14,6 @@ harness = false
 name = "dot_q8_0"
 harness = false
 
-[profile.bench]
-debug = true
+[[bench]]
+name = "gemv_f32"
+harness = false

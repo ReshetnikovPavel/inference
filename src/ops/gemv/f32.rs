@@ -1,7 +1,7 @@
 use crate::types::mat::Mat;
 use crate::ops;
 
-pub fn matvec(w: &Mat<f32>, x: &[f32], b: &[f32]) -> Vec<f32> {
+pub fn gemv(w: &Mat<f32>, x: &[f32], b: &[f32]) -> Vec<f32> {
     debug_assert_eq!(w.cols, x.len());
     debug_assert_eq!(w.rows, b.len());
 
