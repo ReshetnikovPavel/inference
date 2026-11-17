@@ -168,7 +168,7 @@ mod tests {
     fn zero_block_quantizes_to_zero() {
         let v = quantize(&[0.0f32; WEIGHTS_IN_BLOCK]);
 
-        assert_eq!(v.d()[0].0, 0);
+        assert_eq!(f32::from(v.d()[0]), 0.0);
         assert!(f32::from(v.d()[0]).is_sign_positive());
         assert!(v.weights().iter().all(|&w| w == 0));
     }

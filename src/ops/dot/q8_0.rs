@@ -109,8 +109,8 @@ pub fn dot_simd(a: &VecQ8_0, b: &VecQ8_0) -> f32 {
     }
 
     while i < blocks_len {
-        let da = f32::from(unsafe { (*da_ptr.add(i)).0 });
-        let db = f32::from(unsafe { (*db_ptr.add(i)).0 });
+        let da = f32::from(unsafe { *da_ptr.add(i) });
+        let db = f32::from(unsafe { *db_ptr.add(i) });
         let d = x86_64::_mm256_set1_ps(da * db);
 
         let dot = unsafe { mm256_mul_weights(a.weights(), b.weights(), i) };
@@ -196,4 +196,79 @@ unsafe fn mm256_i8_mul_i8(x: x86_64::__m256i, y: x86_64::__m256i) -> x86_64::__m
     let y_mul_x_sign = x86_64::_mm256_sign_epi8(y, x);
     let zeros = x86_64::_mm256_setzero_si256();
     x86_64::_mm256_dpbusd_epi32(zeros, x_abs, y_mul_x_sign)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn exact_q8_0(blocks: usize, seed: u32) -> (VecQ8_0, Vec<i8>) {
+        let mut state = seed;
+        let mut input = Vec::with_capacity(blocks * q8_0::WEIGHTS_IN_BLOCK);
+        let mut weights = Vec::with_capacity(blocks * q8_0::WEIGHTS_IN_BLOCK);
+
+        for _ in 0..blocks {
+            for j in 0..q8_0::WEIGHTS_IN_BLOCK {
+                let w = if j == 0 {
+                    127
+                } else {
+                    state = state.wrapping_mul(1103515245).wrapping_add(12345) & 0x7FFF_FFFF;
+                    (state % 17) as i32 as i8 - 8
+                };
+                weights.push(w);
+                input.push(w as f32 / 128.0);
+            }
+        }
+
+        (q8_0::quantize(&input), weights)
+    }
+
+    fn exact_dot(a: &[i8], b: &[i8]) -> f32 {
+        let sum: i64 = a.iter().zip(b).map(|(&x, &y)| x as i64 * y as i64).sum();
+        sum as f32 / 16384.0
+    }
+
+    #[test]
+    fn empty_is_zero() {
+        let a = q8_0::quantize(&[]);
+        let b = q8_0::quantize(&[]);
+
+        assert_eq!(dot_fallback(&a, &b), 0.0);
+        assert_eq!(unsafe { dot_simd(&a, &b) }, 0.0);
+        assert_eq!(dot(&a, &b), 0.0);
+    }
+
+    #[test]
+    fn known_values() {
+        let mut a = [0.0f32; q8_0::WEIGHTS_IN_BLOCK];
+        a[0] = 127.0 / 128.0;
+        a[1] = 1.0 / 128.0;
+        a[2] = -1.0 / 128.0;
+
+        let mut b = [0.0f32; q8_0::WEIGHTS_IN_BLOCK];
+        b[0] = 127.0 / 128.0;
+        b[1] = 2.0 / 128.0;
+        b[2] = -2.0 / 128.0;
+
+        let a = q8_0::quantize(&a);
+        let b = q8_0::quantize(&b);
+        let expected = 16133.0 / 16384.0;
+
+        assert_eq!(dot_fallback(&a, &b), expected);
+        assert_eq!(unsafe { dot_simd(&a, &b) }, expected);
+        assert_eq!(dot(&a, &b), expected);
+    }
+
+    #[test]
+    fn all_block_counts_match_expected() {
+        for blocks in (0..=17).chain([32, 512]) {
+            let (a, a_weights) = exact_q8_0(blocks, 1);
+            let (b, b_weights) = exact_q8_0(blocks, 2);
+            let expected = exact_dot(&a_weights, &b_weights);
+
+            assert_eq!(dot_fallback(&a, &b), expected, "blocks {blocks}");
+            assert_eq!(unsafe { dot_simd(&a, &b) }, expected, "blocks {blocks}");
+            assert_eq!(dot(&a, &b), expected, "blocks {blocks}");
+        }
+    }
 }
