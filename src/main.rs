@@ -1,10 +1,6 @@
-mod l0;
-mod ops;
-mod types;
+// use inference::{ops, types::q8_0};
 
-// use types::q8_0;
-
-use l0::*;
+use inference::l0::*;
 use std::ffi::{CStr, CString, c_void};
 use std::mem::{size_of, zeroed};
 use std::ptr::{null, null_mut};
@@ -28,18 +24,21 @@ fn main() {
 
     unsafe {
         // 1. Initialize GPU Drivers
-        let init_desc = ze_init_driver_desc_t {
-            stype: ZE_STRUCTURE_TYPE_INIT_DRIVER_DESC,
+        let mut init_desc = ze_init_driver_type_desc_t {
+            stype: ZE_STRUCTURE_TYPE_INIT_DRIVER_TYPE_DESC,
             pNext: null(),
             flags: ZE_INIT_DRIVER_TYPE_FLAG_GPU,
         };
         let mut driver_count = 0;
-        assert_eq!(zeInitDrivers(&mut driver_count, null_mut(), &init_desc), 0);
+        assert_eq!(
+            zeInitDrivers(&mut driver_count, null_mut(), &mut init_desc),
+            0
+        );
         assert!(driver_count > 0, "No Intel GPU drivers found");
 
         let mut drivers = vec![null_mut(); driver_count as usize];
         assert_eq!(
-            zeInitDrivers(&mut driver_count, drivers.as_mut_ptr(), &init_desc),
+            zeInitDrivers(&mut driver_count, drivers.as_mut_ptr(), &mut init_desc),
             0
         );
         let primary_driver = drivers[0];
@@ -61,8 +60,8 @@ fn main() {
 
         // 3. Query Device Properties
         let mut device_properties = ze_device_properties_t {
-            stype: ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES,
-            pNext: null(),
+            stype: ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES_1_2,
+            pNext: null_mut(),
             ..zeroed()
         };
         assert_eq!(
@@ -84,7 +83,7 @@ fn main() {
         let mut group_properties = vec![
             ze_command_queue_group_properties_t {
                 stype: ZE_STRUCTURE_TYPE_COMMAND_QUEUE_GROUP_PROPERTIES,
-                pNext: null(),
+                pNext: null_mut(),
                 ..zeroed()
             };
             group_count as usize
@@ -135,7 +134,7 @@ fn main() {
             stype: ZE_STRUCTURE_TYPE_COMMAND_LIST_DESC,
             pNext: null(),
             commandQueueGroupOrdinal: compute_ordinal,
-            flags: ZE_COMMAND_LIST_FLAG_NONE,
+            flags: 0,
         };
         let mut command_list = null_mut();
         assert_eq!(
@@ -242,7 +241,7 @@ fn main() {
 
         assert_eq!(zeCommandListClose(command_list), 0);
         assert_eq!(
-            zeCommandQueueExecuteCommandLists(command_queue, 1, &command_list, null_mut()),
+            zeCommandQueueExecuteCommandLists(command_queue, 1, &mut command_list, null_mut()),
             0
         );
         assert_eq!(zeCommandQueueSynchronize(command_queue, u64::MAX), 0);
